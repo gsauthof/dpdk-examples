@@ -1,0 +1,33 @@
+# i.e. wait 10 seconds:
+w 10000000
+# set UDP payload size to 256 bytes (maximum 1024)
+n 256
+# set TOS to 23
+t 23
+# transmit a packet
+x
+t 42
+x
+t 5
+n 199
+x
+t 23
+x
+x
+n 523
+# change destination IP address
+d 224.0.2.42
+x
+# change destination port
+D 8888
+x
+# change source port
+S 1969
+x
+n 400
+x
+x
+# wait 1 s
+w 1000000
+x
+x
