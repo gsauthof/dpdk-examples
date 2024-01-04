@@ -204,8 +204,10 @@ static Setup_Result setup_device(const Args *args)
         if (args->offload_chksum && ip_chk && udp_chk) {
             // according to http://doc.dpdk.org/guides/nics/overview.html there isn't really a device
             // that supports L3 checksum offload without also supporting L4 checksum offload
-            port_conf.txmode.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
-            port_conf.txmode.offloads |= DEV_TX_OFFLOAD_UDP_CKSUM;
+            port_conf.txmode.offloads |= RTE_ETH_TX_OFFLOAD_IPV4_CKSUM;
+            port_conf.txmode.offloads |= RTE_ETH_TX_OFFLOAD_UDP_CKSUM;
+            // required for Solarflare, i.e. UDP/TCP offload can only be enabled in tandem ...
+            port_conf.txmode.offloads |= RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
             result.can_offload_chksum = true;
         }
 
