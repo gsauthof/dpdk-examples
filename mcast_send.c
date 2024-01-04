@@ -167,12 +167,12 @@ static Setup_Result setup_device(const Args *args)
         r = rte_eth_dev_info_get(port_id, &dev_info);
         if (r)
             rte_panic("cannot get devinfo: %s\n", rte_strerror(-r));
-        unsigned ip_chk     = !!(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_IPV4_CKSUM);
-        unsigned udp_chk    = !!(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM);
-        unsigned udp_tso    = !!(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_TSO);
-        unsigned send_on_ts = !!(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_SEND_ON_TIMESTAMP);
-        unsigned fast_free  = !!(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE);
-        unsigned tx_multi   = !!(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MULTI_SEGS);
+        unsigned ip_chk     = !!(dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_IPV4_CKSUM);
+        unsigned udp_chk    = !!(dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_UDP_CKSUM);
+        unsigned udp_tso    = !!(dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_UDP_TSO);
+        unsigned send_on_ts = !!(dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_SEND_ON_TIMESTAMP);
+        unsigned fast_free  = !!(dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE);
+        unsigned tx_multi   = !!(dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_MULTI_SEGS);
         RTE_LOG(INFO, USER1,
                 "available offloads: ip_chksum=%u, udp_chksum=%u, "
                 "fast_free=%u, send_on_ts=%u, udp_tso=%u, tx_offload_multi_segs=%u\n",
@@ -321,8 +321,8 @@ void fill_packet(const unsigned char *p, const Pkt_Args *args)
     struct rte_ether_hdr *ehdr = (struct rte_ether_hdr*) p;
     p += sizeof *ehdr;
 
-    rte_ether_addr_copy(&args->eth_src, &ehdr->s_addr);
-    rte_ether_addr_copy(&args->eth_dst, &ehdr->d_addr);
+    rte_ether_addr_copy(&args->eth_src, &ehdr->src_addr);
+    rte_ether_addr_copy(&args->eth_dst, &ehdr->dst_addr);
     ehdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
     struct rte_ipv4_hdr *ihdr = (struct rte_ipv4_hdr*) p;
@@ -514,7 +514,7 @@ static int sender_main(void *v)
             assert(pkt->l3_len   == sizeof(struct rte_ipv4_hdr));
 
             Pkt_Headers h = pkt_headers(pkt);
-            rte_ether_addr_copy(&eth_dst, &h.ehdr->d_addr);
+            rte_ether_addr_copy(&eth_dst, &h.ehdr->dst_addr);
             h.ihdr->type_of_service = tos;
             h.ihdr->total_length    = rte_cpu_to_be_16(sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr) + msg_size);
             h.ihdr->dst_addr        = dst;
@@ -659,9 +659,9 @@ static void init_pkt_headers(struct rte_mempool *mp, void *extra,
         + sizeof(struct rte_udp_hdr) + sizeof(Payload);
 
     if (args->offload_chksum) {
-        pkt->ol_flags |= PKT_TX_IPV4;
-        pkt->ol_flags |= PKT_TX_IP_CKSUM;
-        pkt->ol_flags |= PKT_TX_UDP_CKSUM;
+        pkt->ol_flags |= RTE_MBUF_F_TX_IPV4;
+        pkt->ol_flags |= RTE_MBUF_F_TX_IP_CKSUM;
+        pkt->ol_flags |= RTE_MBUF_F_TX_UDP_CKSUM;
     }
 
     pkt->data_len = n;
