@@ -26,6 +26,7 @@
 
 
 struct Args {
+    const char *name;
     unsigned delay;
     bool offload_chksum;
     bool rx_queue;
@@ -52,6 +53,7 @@ static void help(FILE *o, const char *argv0)
             "  -S PORT    source port (default: 1337)\n"
             "  -d ADDR    destination IPv4 multicast address (default: 224.0.2.23)\n"
             "  -D PORT    destination port (default: 6666)\n"
+            "  -n NAME    open DPDK device/port by name instead using simply the first\n"
             "  -h         show this help text\n"
             );
 }
@@ -68,7 +70,7 @@ static int parse_args(int argc, char **argv, Args *args)
         .ring_size = 4096
     };
     char c = 0;
-    while ((c = getopt(argc, argv, "hw:cxr:s:S:d:D:")) != -1) {
+    while ((c = getopt(argc, argv, "hw:cxr:s:S:d:D:n:")) != -1) {
         switch (c) {
             case '?':
                 fprintf(stderr, "unknown option: %c\n", optopt);
@@ -125,6 +127,9 @@ static int parse_args(int argc, char **argv, Args *args)
             case 'D':
                 args->dst_port = rte_cpu_to_be_16(atoi(optarg));
                 break;
+            case 'n':
+                args->name = optarg;
+                break;
             default:
                 fprintf(stderr, "unimplemented option: %c\n", c);
                 return -1;
@@ -148,6 +153,7 @@ static int parse_args(int argc, char **argv, Args *args)
 struct Setup_Result {
     struct rte_ether_addr eth_src;
     bool can_offload_chksum;
+    uint16_t port_id;
 };
 typedef struct Setup_Result Setup_Result;
 
@@ -161,7 +167,18 @@ static Setup_Result setup_device(const Args *args)
 
     uint16_t rx_ring_size = 256;
 
-    RTE_ETH_FOREACH_DEV(port_id) {
+    if (args->name) {
+        int r = rte_eth_dev_get_port_by_name(args->name, &port_id);
+        if (r)
+            rte_panic("cannot get port by %s: %s\n", args->name, rte_strerror(-r));
+    } else {
+        port_id = rte_eth_find_next_owned_by(0, RTE_ETH_DEV_NO_OWNER);
+        if (port_id >= RTE_MAX_ETHPORTS)
+            rte_panic("can't find any ports\n");
+    }
+    result.port_id = port_id;
+
+    {
         int r = rte_eth_dev_is_valid_port(port_id);
         if (!r)
             rte_panic("port_id %" PRIu16 " is invalid\n", port_id);
@@ -289,8 +306,6 @@ static Setup_Result setup_device(const Args *args)
         rte_eth_link_to_str(t, sizeof t, &link);
 #pragma GCC diagnostic pop
         RTE_LOG(INFO, USER1, "port %" PRIu16 " link status: %s\n", port_id, t);
-
-        break;
     }
 
 
@@ -455,7 +470,7 @@ typedef struct Command_Block Command_Block;
 
 
 struct Sender_Args {
-    int                 port_id;
+    uint16_t            port_id;
     struct rte_mempool *pkt_pool;
     rte_be32_t          src;
     struct rte_ether_addr eth_dst;
@@ -788,6 +803,7 @@ int main(int argc, char **argv)
         rte_exit(1, "cannot allocate cmd ring: %s\n", rte_strerror(rte_errno));
 
     Sender_Args sargs = {
+        .port_id        = sr.port_id,
         .pkt_pool       = pkt_pool,
         .src            = args.src_addr,
         .eth_dst        = pargs.eth_dst,
