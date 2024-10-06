@@ -253,6 +253,10 @@ static Setup_Result setup_device(const Args *args)
         else
             RTE_LOG(INFO, USER1, "port %" PRIu16 " MTU: %" PRIu16 "\n", port_id, mtu);
 
+        // required on some devices since it might takes some time until
+        // the link is up and auto-negotiated with the switch ...
+        sleep(args->delay);
+
         struct rte_eth_link link = {0};
         r = rte_eth_link_get(port_id, &link);
         if (r)
@@ -268,9 +272,6 @@ static Setup_Result setup_device(const Args *args)
         break;
     }
 
-    // required on some devices since it might takes some time until
-    // the link is up and auto-negotiated with the switch ...
-    sleep(args->delay);
 
     return result;
 }
