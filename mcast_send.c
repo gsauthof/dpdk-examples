@@ -28,6 +28,7 @@
 struct Args {
     unsigned delay;
     bool offload_chksum;
+    bool rx_queue;
     uint32_t src_addr;
     uint16_t src_port;
     uint32_t dst_addr;
@@ -45,6 +46,7 @@ static void help(FILE *o, const char *argv0)
             "  -w SECS    wait before first transmit for link auto-negotiation to complete\n"
             "             (default: 2)\n"
             "  -c         don't offload checksum computation (default: auto-detect)\n"
+            "  -x         create dummy rx queue\n"
             "  -r N       ring size, i.e. 1024, 2048 or 4096 (default: 4096)\n"
             "  -s ADDR    source IPv4 address (default: 192.168.178.223)\n"
             "  -S PORT    source port (default: 1337)\n"
@@ -66,7 +68,7 @@ static int parse_args(int argc, char **argv, Args *args)
         .ring_size = 4096
     };
     char c = 0;
-    while ((c = getopt(argc, argv, "hw:cr:s:S:d:D:")) != -1) {
+    while ((c = getopt(argc, argv, "hw:cxr:s:S:d:D:")) != -1) {
         switch (c) {
             case '?':
                 fprintf(stderr, "unknown option: %c\n", optopt);
@@ -80,6 +82,9 @@ static int parse_args(int argc, char **argv, Args *args)
                 break;
             case 'c':
                 args->offload_chksum = false;
+                break;
+            case 'x':
+                args->rx_queue = true;
                 break;
             case 'r':
                 {
@@ -216,12 +221,28 @@ static Setup_Result setup_device(const Args *args)
             result.can_offload_chksum = true;
         }
 
-        r = rte_eth_dev_configure(port_id, 0 /* rxrings */, 1 /* txrings */, &port_conf);
+        uint16_t rxrings = args->rx_queue ? 1 : 0;
+
+        r = rte_eth_dev_configure(port_id, rxrings, 1 /* txrings */, &port_conf);
         if (r)
             rte_panic("cannot configure port/dev: %s\n", rte_strerror(-r));
 
-        // NB rxrings must be 0, when no rx-queue is configured
-        // otherwise, cf. rte_eth_rx_queue_setup()
+        // NB: rxrings must be 0, when no rx-queue is configured,
+        //     if we configure an rxring we must also setup an rx-queue!
+
+
+        if (args->rx_queue) {
+            struct rte_mempool *rx_pool = rte_pktmbuf_pool_create("rx_pkt_pool",
+                    dev_info.rx_desc_lim.nb_max, 32,
+                    0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+            if (!rx_pool)
+                rte_panic("cannot set up dummy rx pool: %s\n", rte_strerror(-r));
+            r = rte_eth_rx_queue_setup(port_id, 0, rx_ring_size,
+                    rte_eth_dev_socket_id(port_id), NULL,
+                    rx_pool);
+            if (r)
+                rte_panic("cannot set up dummy rx queue: %s\n", rte_strerror(-r));
+        }
 
         struct rte_eth_txconf txconf = dev_info.default_txconf;
         txconf.offloads = port_conf.txmode.offloads;
