@@ -163,6 +163,11 @@ static Setup_Result setup_device(const Args *args)
 
         RTE_LOG(INFO, USER1, "using port: %" PRIu16 "\n", port_id);
 
+        char name[RTE_ETH_NAME_MAX_LEN] = {0};
+        rte_eth_dev_get_name_by_port(port_id, name);
+        RTE_LOG(INFO, USER1, "port %" PRIu16 " name: %s\n", port_id, name);
+
+
         struct rte_eth_dev_info dev_info;
         r = rte_eth_dev_info_get(port_id, &dev_info);
         if (r)
